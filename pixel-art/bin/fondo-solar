@@ -1,0 +1,98 @@
+#!/usr/bin/env python3
+"""Cambia el fondo de KDE Plasma entre los sistemas solares y tu fondo anterior.
+
+  fondo-solar pixel      sistema solar pixel art
+  fondo-solar ascii      sistema solar ASCII
+  fondo-solar anterior   el fondo que tenías antes de los sistemas solares
+  fondo-solar estado     qué fondo usa cada escritorio
+"""
+import json
+import os
+from pathlib import Path
+import subprocess
+import sys
+
+PIXEL = 'local.solar.pixel'
+ASCII = 'local.solar.ascii'
+SOLAR = (PIXEL, ASCII)
+NAMES = {PIXEL: 'Sistema solar pixel art', ASCII: 'Sistema solar ASCII'}
+STATE_HOME = Path(os.environ.get('XDG_STATE_HOME', Path.home() / '.local/state'))
+DATA_HOME = Path(os.environ.get('XDG_DATA_HOME', Path.home() / '.local/share'))
+BACKUP = STATE_HOME / PIXEL / 'previous-wallpaper.json'
+ASCII_BACKUP = STATE_HOME / ASCII / 'previous-wallpaper.json'
+
+
+def evaluate(script):
+    return subprocess.run([
+        'qdbus6', 'org.kde.plasmashell', '/PlasmaShell',
+        'org.kde.PlasmaShell.evaluateScript', script,
+    ], check=True, capture_output=True, text=True).stdout.strip()
+
+
+def status():
+    return json.loads(evaluate('''print(JSON.stringify(desktops().map(function(d) {
+        return {id: d.id, screen: d.screen, plugin: d.wallpaperPlugin};
+    })))'''))
+
+
+def installed(plugin):
+    folders = [DATA_HOME] + [Path(p) for p in os.environ.get('XDG_DATA_DIRS', '/usr/local/share:/usr/share').split(':')]
+    return any((folder / 'plasma/wallpapers' / plugin / 'metadata.json').exists() for folder in folders)
+
+
+def remember(desktops):
+    """Keep the last non-solar wallpaper of every desktop; never overwrite it with a solar one."""
+    others = [d for d in desktops if d['plugin'] not in SOLAR]
+    if not others:
+        return
+    BACKUP.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    saved = json.loads(BACKUP.read_text()) if BACKUP.exists() else []
+    by_id = {d['id']: d for d in saved}
+    by_id.update({d['id']: d for d in others})
+    BACKUP.write_text(json.dumps(list(by_id.values()), indent=2) + '\n')
+    BACKUP.chmod(0o600)
+
+
+def activate(plugin):
+    if not installed(plugin):
+        raise SystemExit(f'{NAMES[plugin]} no está instalado en Plasma.')
+    remember(status())
+    evaluate('desktops().forEach(function(d) { d.wallpaperPlugin = ' + json.dumps(plugin) + '; });')
+    if any(d['plugin'] != plugin for d in status()):
+        raise SystemExit('Plasma no confirmó el cambio de fondo.')
+    print(f'Fondo activo: {NAMES[plugin]}.')
+
+
+def restore():
+    source = BACKUP if BACKUP.exists() else ASCII_BACKUP if ASCII_BACKUP.exists() else None
+    if not source:
+        raise SystemExit('No hay un fondo anterior guardado.')
+    saved = json.loads(source.read_text())
+    evaluate('''var saved = ''' + json.dumps(saved) + ''';
+        var solar = ''' + json.dumps(list(SOLAR)) + ''';
+        desktops().forEach(function(d) {
+            if (solar.indexOf(d.wallpaperPlugin) < 0) return;
+            var previous = saved.find(function(s) { return s.id === d.id; })
+                || saved.find(function(s) { return s.screen === d.screen; });
+            if (previous) d.wallpaperPlugin = previous.plugin;
+        });''')
+    print('Fondo anterior restaurado. Los sistemas solares siguen disponibles en los ajustes del fondo.')
+
+
+def show_status():
+    for d in status():
+        print(f"Escritorio {d['id']} (pantalla {d['screen']}): {NAMES.get(d['plugin'], d['plugin'])}")
+
+
+def main(argv):
+    actions = {'pixel': lambda: activate(PIXEL), 'ascii': lambda: activate(ASCII),
+               'anterior': restore, 'restaurar': restore, 'estado': show_status, 'status': show_status}
+    if len(argv) != 2 or argv[1] not in actions:
+        print(__doc__.strip())
+        return 0 if len(argv) == 2 and argv[1] in ('-h', '--help', 'ayuda') else 2
+    actions[argv[1]]()
+    return 0
+
+
+if __name__ == '__main__':
+    sys.exit(main(sys.argv))

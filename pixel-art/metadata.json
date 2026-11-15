@@ -1,0 +1,15 @@
+{
+    "KPackageStructure": "Plasma/Wallpaper",
+    "KPlugin": {
+        "Id": "local.solar.pixel",
+        "Name": "Sistema solar pixel art",
+        "Description": "Sistema solar animado en pixel art: planetas que rotan con fases de luz, Sol con protuberancias, cometa, estrellas fugaces y una nave",
+        "Icon": "applications-science",
+        "Version": "1.0.0",
+        "License": "MIT",
+        "Authors": [{"Name": "jaasieldelgado131"}]
+    },
+    "X-Plasma-API": "declarativeappletscript",
+    "X-Plasma-MainScript": "ui/main.qml",
+    "X-Plasma-API-Minimum-Version": "6.0"
+}
