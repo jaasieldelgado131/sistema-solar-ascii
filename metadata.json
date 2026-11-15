@@ -1,0 +1,15 @@
+{
+    "KPackageStructure": "Plasma/Wallpaper",
+    "KPlugin": {
+        "Id": "local.solar.ascii",
+        "Name": "Sistema solar ASCII",
+        "Description": "Planetas en órbita, estrellas y meteoritos dibujados con caracteres ASCII",
+        "Icon": "applications-science",
+        "Version": "1.0.1",
+        "License": "MIT",
+        "Authors": [{"Name": "jaasieldelgado131"}]
+    },
+    "X-Plasma-API": "declarativeappletscript",
+    "X-Plasma-MainScript": "ui/main.qml",
+    "X-Plasma-API-Minimum-Version": "6.0"
+}
